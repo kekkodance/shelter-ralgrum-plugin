@@ -1,5 +1,5 @@
 <h1 align="center">
- Open in ralgruM (shelter)
+ Open in ralgruM
 </h1>
 
 <div align="center">
@@ -9,10 +9,11 @@
   <br/>
 
   <span>
-    Shelter plugin that hijacks left-click on Deezer and SoundCloud links and opens them in the ralgruM desktop app via the <code>ralgrum://open</code> protocol instead of the browser.
+    Shelter plugin that opens Deezer and SoundCloud links in the ralgruM desktop app via the <code>ralgrum://open</code> protocol.
   </span>
 </div>
 
+#
 
 - Hijacks left-click actions. Ctrl/Cmd/Shift/middle-click still go to the browser.
 - Supports canonical pages plus share shortlinks:
