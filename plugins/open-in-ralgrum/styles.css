@@ -1,0 +1,27 @@
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  vertical-align: 1px;
+  color: #e0e7ff;
+  background: rgba(79, 70, 229, 0.25);
+  border: 1px solid rgba(129, 140, 248, 0.6);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.badge[data-provider="deezer"] {
+  color: #f5d0fe;
+  background: rgba(168, 85, 247, 0.22);
+  border-color: rgba(192, 132, 252, 0.65);
+}
+
+.badge[data-provider="soundcloud"] {
+  color: #fed7aa;
+  background: rgba(249, 115, 22, 0.2);
+  border-color: rgba(251, 146, 60, 0.65);
+}
