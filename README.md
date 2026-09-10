@@ -1,10 +1,11 @@
 <h1 align="center">
- Open in ralgruM
+  <img src="assets/ralgrum.png" width="48" height="48" valign="middle" />
+  Open in ralgruM
 </h1>
 
 <div align="center">
   <img src="https://img.shields.io/github/actions/workflow/status/kekkodance/shelter-ralgrum-plugin/deploy.yml" />
-  <img src="https://img.shields.io/github/actions/workflow/status/kekkodance/shelter-ralgrum-plugin/lint.yml?label=code quality" />
+  <img src="https://img.shields.io/github/actions/workflow/status/kekkodance/shelter-ralgrum-plugin/lint.yml?label=code%20quality" />
 
   <br/>
 
