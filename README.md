@@ -1,6 +1,5 @@
 <h1 align="center">
-  <img src="assets/ralgrum.png" width="48" height="48" valign="middle" />
-  Open in ralgruM
+  Open in <img src="assets/ralgrum.png" width="48" height="48" valign="middle" /> ralgruM
 </h1>
 
 <div align="center">
