@@ -14,9 +14,9 @@ export function SettingsPanel() {
   return (
     <>
       <Text tag={TextTags.textSM} style={{ display: "block", "margin-bottom": "8px" }}>
-        Plain left-click opens in ralgruM.
+        Left-click opens links in ralgruM.
         <br />
-        Ctrl/Cmd/Shift/Middle-click open in the browser.
+        Ctrl/Cmd/Shift/Middle-click opens them in the browser.
       </Text>
       <Text tag={TextTags.textSM} style={{ display: "block", "margin-bottom": "4px" }}>
         If nothing happens, make sure the ralgrum:// protocol is registered.
