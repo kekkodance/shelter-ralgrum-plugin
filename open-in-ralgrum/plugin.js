@@ -346,9 +346,9 @@ function SettingsPanel() {
 			},
 			get children() {
 				return [
-					"Plain left-click opens in ralgruM.",
+					"Left-click opens links in ralgruM.",
 					(0, import_web$2.getNextElement)(_tmpl$),
-					"Ctrl/Cmd/Shift/Middle-click open in the browser."
+					"Ctrl/Cmd/Shift/Middle-click opens them in the browser."
 				];
 			}
 		}),
