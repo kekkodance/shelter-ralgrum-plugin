@@ -9,7 +9,7 @@
   <br/>
 
   <span>
-    Shelter plugin that hijacks left-click on Deezer and SoundCloud links and opens them in the ralgruM desktop app via the `ralgrum://open` protocol instead of the browser.
+    Shelter plugin that hijacks left-click on Deezer and SoundCloud links and opens them in the ralgruM desktop app via the <code>ralgrum://open</code> protocol instead of the browser.
   </span>
 </div>
 
@@ -33,7 +33,7 @@ npm run dev
 ```
 Enable Lune Dev Mode in Discord (shelter settings).
 
-Open ralgruM at least once so it's protocol handler gets registered.
+Open ralgruM at least once so its protocol handler gets registered.
 
 ## Build / host locally
 
