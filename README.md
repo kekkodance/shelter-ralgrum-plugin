@@ -16,11 +16,9 @@
 ---
 
 - Hijacks left-click actions. Ctrl/Cmd/Shift/middle-click still go to the browser.
-- Supports canonical pages plus share shortlinks:
-  `link.deezer.com`, `deezer.page.link`, `on.soundcloud.com`, and mobile
-  `m.soundcloud.com`.
-- Hijacked links show a tooltip. If ralgruM is missing, the
-  click is blocked and a toast explains why.
+- Supports canonical pages plus share shortlinks:  
+  `link.deezer.com`, `deezer.page.link`, `on.soundcloud.com`, and `m.soundcloud.com`.
+- Hijacked links show a tooltip. If ralgruM is missing, the click is blocked and a toast explains why.
 
 ## Install
 
