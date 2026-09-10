@@ -14,7 +14,7 @@
   </span>
 </div>
 
-#
+---
 
 - Hijacks left-click actions. Ctrl/Cmd/Shift/middle-click still go to the browser.
 - Supports canonical pages plus share shortlinks:
