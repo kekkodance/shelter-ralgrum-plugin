@@ -1,6 +1,4 @@
 // RalgrumDetectors for the shelter plugin.
-// URL parsing is copied from ralgrum-browser-integration/extension/content/detectors.js
-// (pure parsers, no chrome APIs) and extended for Discord use:
 //  - m.soundcloud.com explicitly supported (mobile subdomain)
 //  - link.deezer.com / deezer.page.link treated as shortlinks that ralgruM
 //    resolves natively (web pages cannot follow their redirects, CORS hides
