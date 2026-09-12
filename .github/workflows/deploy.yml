@@ -2,11 +2,21 @@ name: Build and deploy
 
 on:
   push:
-    branches: [main]
+    branches-ignore: [gh-pages]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  deploy:
+  checks:
     runs-on: ubuntu-latest
+    outputs:
+      artifact-id: ${{ steps.artifact.outputs.artifact-id }}
 
     steps:
       - uses: actions/checkout@v7
@@ -17,14 +27,60 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Deps
+      - name: Install dependencies
         run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
 
       - name: Build plugin
         run: npm run build
 
+      - name: Upload checked plugin
+        id: artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-dist
+          path: dist
+          if-no-files-found: error
+
+  deploy:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download checked plugin
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.checks.outputs.artifact-id }}
+          path: dist
+          merge-multiple: true
+
+      - name: Check current main revision
+        id: current
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          current_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$current_sha" == "$GITHUB_SHA" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping superseded revision $GITHUB_SHA; main is $current_sha."
+          fi
+
       - name: Deploy to GitHub Pages
+        if: ${{ steps.current.outputs.publish == 'true' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
+          user_name: kekko
+          user_email: kekko@420blaze.it

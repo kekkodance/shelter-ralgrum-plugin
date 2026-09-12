@@ -5,15 +5,20 @@ const {
 } = shelter;
 
 import { classifyLink, buildRalgrumUrl, buildShortlinkRalgrumUrl } from "./detectors.js";
-import { markAnchor, refreshAllMarks, cleanupAllMarks, isEntityEnabled, shortlinkProvider, REFRESH_EVENT } from "./marks.js";
+import {
+  markAnchor,
+  refreshAllMarks,
+  cleanupAllMarks,
+  isEntityEnabled,
+  isShortlinkEnabled,
+  REFRESH_EVENT,
+} from "./marks.js";
 import { SettingsPanel } from "./settings.jsx";
 
 export const settings = SettingsPanel;
 
-const LINK_SELECTOR =
-  'a[href*="deezer.com"]:not([data-ralgrum]),' +
-  'a[href*="soundcloud.com"]:not([data-ralgrum]),' +
-  'a[href*="deezer.page.link"]:not([data-ralgrum])';
+let loaded = false;
+let stopObserving;
 
 function ensureDefaults() {
   store.deezer ??= true;
@@ -32,7 +37,12 @@ function toastColors() {
 
 function notifyError(content) {
   try {
-    ui.showToast({ title: "Open in ralgruM", content, color: toastColors().CRITICAL, duration: 4000 });
+    ui.showToast({
+      title: "Open in ralgruM",
+      content,
+      color: toastColors().CRITICAL,
+      duration: 4000,
+    });
   } catch {
     // ignore
   }
@@ -122,7 +132,7 @@ function openShortlink(originalUrl) {
 
 function handleClick(e) {
   try {
-    if (e.defaultPrevented) {
+    if (!loaded || e.defaultPrevented || !isPlainLeftClick(e)) {
       return;
     }
     const target = e.target;
@@ -142,21 +152,12 @@ function handleClick(e) {
       if (!isEntityEnabled(classification.entity, store)) {
         return;
       }
-      if (!isPlainLeftClick(e)) {
-        return;
-      }
       hijack(e);
       openEntity(classification.entity, anchor);
       return;
     }
-    // Shortlink: provider toggle decides hijack before anything else. The
-    // host family implies the provider (see marks.js shortlinkProvider).
-    // Disabled providers are never hijacked: fall through to the browser.
-    const shortProvider = shortlinkProvider(anchor.href);
-    if (shortProvider && store[shortProvider] === false) {
-      return;
-    }
-    if (!isPlainLeftClick(e)) {
+    // Share kinds are unknown until native resolution; all kinds off still opts out.
+    if (!isShortlinkEnabled(anchor.href, store)) {
       return;
     }
     hijack(e);
@@ -167,33 +168,31 @@ function handleClick(e) {
 }
 
 function handleObserved(node) {
-  try {
-    if (node instanceof HTMLAnchorElement) {
-      markAnchor(node);
-      return;
-    }
-    if (node && typeof node.querySelectorAll === "function") {
-      const anchors = node.querySelectorAll("a[href]");
-      for (const a of anchors) {
-        markAnchor(a);
-      }
-    }
-  } catch {
-    // ignore
+  if (loaded) {
+    markAnchor(node);
+  }
+}
+
+function handleRefresh() {
+  if (loaded) {
+    refreshAllMarks();
   }
 }
 
 export function onLoad() {
+  if (loaded) {
+    return;
+  }
   ensureDefaults();
+  loaded = true;
+  scoped.onDispose(onUnload);
 
   document.addEventListener("click", handleClick, true);
-  scoped.onDispose(() => document.removeEventListener("click", handleClick, true));
 
-  const onRefresh = () => refreshAllMarks();
-  window.addEventListener(REFRESH_EVENT, onRefresh);
-  scoped.onDispose(() => window.removeEventListener(REFRESH_EVENT, onRefresh));
+  window.addEventListener(REFRESH_EVENT, handleRefresh);
 
-  scoped.observeDom(LINK_SELECTOR, handleObserved);
+  // Observe href removal and transitions as well as new links of any host casing.
+  stopObserving = scoped.observeDom("a", handleObserved);
 
   // Mark links already on screen before the observer fires.
   refreshAllMarks();
@@ -202,6 +201,14 @@ export function onLoad() {
 }
 
 export function onUnload() {
+  if (!loaded) {
+    return;
+  }
+  loaded = false;
+  document.removeEventListener("click", handleClick, true);
+  window.removeEventListener(REFRESH_EVENT, handleRefresh);
+  stopObserving?.();
+  stopObserving = undefined;
   pendingResolves.clear();
   cleanupAllMarks();
 }

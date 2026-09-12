@@ -38,35 +38,116 @@ describe("Deezer canonical pages (ported from browser-integration)", () => {
 });
 
 describe("SoundCloud pages", () => {
-  it("detects artist, track, playlist, and album shapes", () => {
-    assert.equal(parseSoundcloudUrl("https://soundcloud.com/someartist").type, "artist");
-    assert.equal(parseSoundcloudUrl("https://soundcloud.com/someartist/some-track").type, "track");
-    assert.equal(parseSoundcloudUrl("https://soundcloud.com/someartist/sets/some-mix").type, "playlist");
-    assert.equal(parseSoundcloudUrl("https://soundcloud.com/someartist/albums/some-album").type, "album");
+  it("serializes complete public artist, track, playlist, and album permalinks", () => {
+    for (const [path, type, action] of [
+      ["someartist", "artist", "open"],
+      ["someartist/some-track", "track", "play"],
+      ["someartist/sets/some-mix", "playlist", "open"],
+      ["someartist/albums/some-album", "album", "open"],
+    ]) {
+      const href = `https://soundcloud.com/${path}`;
+      const result = classifyLink(href);
+      assert.equal(result.kind, "entity", path);
+      const params = new URL(buildRalgrumUrl(result.entity)).searchParams;
+      assert.equal(params.get("type"), type, path);
+      assert.equal(params.get("action"), action, path);
+      assert.equal(params.get("url"), href, path);
+    }
   });
 
-  it("supports the mobile subdomain", () => {
-    const entity = parseSoundcloudUrl("https://m.soundcloud.com/sloobymusic/thebassisnowgoingtodrop");
-    assert.equal(entity.type, "track");
-    assert.equal(entity.provider, "soundcloud");
+  it("canonicalizes supported mobile and www hosts without losing secret queries", () => {
+    const path = "/someartist/some-track/?secret_token=s-aBc123&si=a%2Bb&utm_source=clipboard";
+    for (const host of ["M.SoUnDcLoUd.CoM", "WWW.SOUNDCLOUD.COM"]) {
+      const result = classifyLink(`https://${host}${path}#t=1:23`);
+      assert.equal(result.kind, "entity", host);
+      const params = new URL(buildRalgrumUrl(result.entity)).searchParams;
+      assert.equal(params.get("provider"), "soundcloud");
+      assert.equal(params.get("type"), "track");
+      assert.equal(params.get("action"), "play");
+      assert.equal(params.get("url"), `https://soundcloud.com${path}`);
+    }
   });
 
-  it("canonicalizes entity URLs to soundcloud.com for api-v2 resolve", () => {
-    const entity = parseSoundcloudUrl("https://m.soundcloud.com/sloobymusic/thebassisnowgoingtodrop");
-    assert.equal(entity.url, "https://soundcloud.com/sloobymusic/thebassisnowgoingtodrop");
-    const link = buildRalgrumUrl(entity);
-    assert.match(link, /url=https%3A%2F%2Fsoundcloud\.com%2Fsloobymusic%2Fthebassisnowgoingtodrop/);
+  it("leaves nonmusic subdomains and lookalike hosts to browser navigation", () => {
+    for (const href of [
+      "https://help.soundcloud.com/hc/en-us",
+      "https://developers.soundcloud.com/docs",
+      "https://secure.soundcloud.com/authorize",
+      "https://arbitrary.soundcloud.com/someartist/some-track",
+      "https://nested.m.soundcloud.com/someartist/some-track",
+      "https://notsoundcloud.com/someartist/some-track",
+      "https://soundcloud.com.evil.example/someartist/some-track",
+      "http://soundcloud.com/someartist/some-track",
+    ]) {
+      assert.equal(classifyLink(href).kind, null, href);
+    }
   });
 
   it("rejects reserved top-level routes", () => {
-    for (const route of ["you", "discover", "stream", "search", "upload", "settings"]) {
-      assert.equal(parseSoundcloudUrl(`https://soundcloud.com/${route}`), null, route);
+    for (const route of [
+      "you",
+      "discover",
+      "stream",
+      "feed",
+      "feed/likes",
+      "search",
+      "upload",
+      "settings",
+    ]) {
+      assert.equal(classifyLink(`https://soundcloud.com/${route}`).kind, null, route);
+    }
+  });
+
+  it("does not mistake profile tabs for tracks or individual collections", () => {
+    for (const tab of [
+      "likes",
+      "tracks",
+      "popular-tracks",
+      "reposts",
+      "followers",
+      "following",
+      "sets",
+      "albums",
+    ]) {
+      assert.equal(classifyLink(`https://soundcloud.com/soundcloud/${tab}`).kind, null, tab);
+    }
+    assert.equal(classifyLink("https://soundcloud.com/soundcloud/likes/s-aBc123").kind, null);
+  });
+
+  it("requires complete resource shapes rather than any nested path or sets segment", () => {
+    for (const path of [
+      "someartist/some-track/extra",
+      "someartist/some-track/sets",
+      "someartist/some-track/s-",
+      "someartist/some-track/s-aBc123/extra",
+      "someartist/sets/some-mix/extra",
+      "someartist/albums/some-album/s-",
+      "someartist/sets/some-mix/s-aBc123/extra",
+    ]) {
+      assert.equal(classifyLink(`https://soundcloud.com/${path}`).kind, null, path);
+    }
+  });
+
+  it("preserves private track and collection suffixes through native serialization", () => {
+    for (const [path, type, action] of [
+      ["someartist/some-track/s-aBc123", "track", "play"],
+      ["someartist/sets/some-mix/s-aBc123", "playlist", "open"],
+      ["someartist/albums/some-album/s-aBc123", "album", "open"],
+    ]) {
+      const canonical = `https://soundcloud.com/${path}?secret_token=s-aBc123&si=a%2Bb`;
+      const result = classifyLink(`${canonical}#t=1:23`);
+      assert.equal(result.kind, "entity", path);
+      const params = new URL(buildRalgrumUrl(result.entity)).searchParams;
+      assert.equal(params.get("type"), type, path);
+      assert.equal(params.get("action"), action, path);
+      assert.equal(params.get("url"), canonical, path);
     }
   });
 
   it("treats on.soundcloud.com share links as resolvable, never artists", () => {
     assert.equal(parseSoundcloudUrl("https://on.soundcloud.com/AbC123"), null);
     assert.equal(isShortlinkUrl("https://on.soundcloud.com/AbC123"), true);
+    assert.equal(classifyLink("https://on.soundcloud.com/AbC123").kind, "shortlink");
   });
 });
 
@@ -90,10 +171,16 @@ describe("link classification", () => {
 describe("ralgrum links", () => {
   it("defaults tracks to play and collections to open", () => {
     const track = buildRalgrumUrl({
-      provider: "deezer", type: "track", id: "1", url: "https://www.deezer.com/track/1",
+      provider: "deezer",
+      type: "track",
+      id: "1",
+      url: "https://www.deezer.com/track/1",
     });
     const album = buildRalgrumUrl({
-      provider: "deezer", type: "album", id: "2", url: "https://www.deezer.com/album/2",
+      provider: "deezer",
+      type: "album",
+      id: "2",
+      url: "https://www.deezer.com/album/2",
     });
     assert.match(track, /action=play/);
     assert.match(album, /action=open/);

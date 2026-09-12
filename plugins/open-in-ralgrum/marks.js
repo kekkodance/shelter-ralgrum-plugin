@@ -1,15 +1,15 @@
-// DOM marking helpers shared by index.jsx (observer/click/unload)
-// and settings.jsx (re-scan after toggles). No shelter imports at module
-// top level except types; shelter global is read lazily so lune dev
-// reloads and tests stay predictable.
+// Tooltip ownership and eligibility shared by the observer, clicks, and settings.
 import { classifyLink } from "./detectors.js";
-import classes from "./styles.css";
 
-export const MARK_ATTR = "ralgrum";
+const MARK_ATTR = "data-ralgrum";
 export const REFRESH_EVENT = "open-in-ralgrum:refresh";
-export const TOOLTIP = "Open in ralgruM (Ctrl+Click for browser)";
+const TOOLTIP = "Open in ralgruM (Ctrl+Click for browser)";
 
-export function shortlinkProvider(rawUrl) {
+// Only actively marked anchors are retained; all other href state is weak.
+const markedAnchors = new Map();
+let seenHrefs = new WeakMap();
+
+function shortlinkProvider(rawUrl) {
   try {
     const host = new URL(String(rawUrl)).hostname.toLowerCase();
     if (/(?:^|\.)(link\.deezer\.com|deezer\.page\.link)$/.test(host)) {
@@ -43,28 +43,44 @@ export function isEntityEnabled(entity, store) {
   return true;
 }
 
+export function isShortlinkEnabled(href, store) {
+  if (
+    store.showTracks === false &&
+    store.showCollections === false &&
+    store.showArtists === false
+  ) {
+    return false;
+  }
+  const provider = shortlinkProvider(href);
+  return provider !== null && store[provider] !== false;
+}
+
 function shouldMark(href, classification, store) {
   if (classification.kind === "entity") {
     return isEntityEnabled(classification.entity, store);
   }
   if (classification.kind === "shortlink") {
-    const provider = shortlinkProvider(href);
-    return provider ? store[provider] !== false : false;
+    return isShortlinkEnabled(href, store);
   }
   return false;
 }
 
 function resetAnchor(a) {
-  const badge = a.querySelector(`.${classes.badge}`);
-  if (badge) {
-    badge.remove();
+  const originalTitle = markedAnchors.get(a);
+  if (originalTitle === undefined) {
+    return;
   }
-  if (MARK_ATTR in a.dataset) {
-    delete a.dataset[MARK_ATTR];
+  markedAnchors.delete(a);
+  if (a.getAttribute(MARK_ATTR) === "1") {
+    a.removeAttribute(MARK_ATTR);
   }
-  if ("ralgrumOrigTitle" in a.dataset) {
-    a.title = a.dataset.ralgrumOrigTitle;
-    delete a.dataset.ralgrumOrigTitle;
+  // Discord may have replaced our tooltip while the anchor was marked.
+  if (a.getAttribute("title") === TOOLTIP) {
+    if (originalTitle === null) {
+      a.removeAttribute("title");
+    } else if (originalTitle !== TOOLTIP) {
+      a.setAttribute("title", originalTitle);
+    }
   }
 }
 
@@ -73,21 +89,29 @@ export function markAnchor(a) {
     if (!(a instanceof HTMLAnchorElement)) {
       return;
     }
-    if (MARK_ATTR in a.dataset) {
+    if (!a.isConnected || !a.hasAttribute("href")) {
+      seenHrefs.delete(a);
+      resetAnchor(a);
       return;
     }
-    const store = shelter.plugin.store;
     const href = a.href;
-    const classification = classifyLink(href);
-    const mark = shouldMark(href, classification, store);
-    a.dataset[MARK_ATTR] = mark ? "1" : "0";
-    if (!mark) {
-      return;
+    if (seenHrefs.get(a) !== href) {
+      seenHrefs.set(a, href);
+      if (!shouldMark(href, classifyLink(href), shelter.plugin.store)) {
+        resetAnchor(a);
+        return;
+      }
+      if (!markedAnchors.has(a)) {
+        const originalTitle = a.getAttribute("title");
+        markedAnchors.set(a, originalTitle);
+        if (originalTitle !== TOOLTIP) {
+          a.setAttribute("title", TOOLTIP);
+        }
+      }
     }
-    if (!("ralgrumOrigTitle" in a.dataset)) {
-      a.dataset.ralgrumOrigTitle = a.title || "";
+    if (markedAnchors.has(a) && a.getAttribute(MARK_ATTR) !== "1") {
+      a.setAttribute(MARK_ATTR, "1");
     }
-    a.title = TOOLTIP;
   } catch {
     // Never let marking break Discord rendering.
   }
@@ -96,9 +120,12 @@ export function markAnchor(a) {
 /** Re-evaluate every anchor (used on load and after settings changes). */
 export function refreshAllMarks() {
   try {
-    const anchors = document.querySelectorAll("a[href]");
-    for (const a of anchors) {
-      resetAnchor(a);
+    seenHrefs = new WeakMap();
+    // Include owners that lost href or were detached before observation ran.
+    for (const a of markedAnchors.keys()) {
+      markAnchor(a);
+    }
+    for (const a of document.querySelectorAll("a[href]")) {
       markAnchor(a);
     }
   } catch {
@@ -106,13 +133,13 @@ export function refreshAllMarks() {
   }
 }
 
-/** Remove all marks (plus pills left behind by older versions). */
+/** Release every owned tooltip, including anchors outside the document. */
 export function cleanupAllMarks() {
   try {
-    const marked = document.querySelectorAll(`a[data-${MARK_ATTR}]`);
-    for (const a of marked) {
+    for (const a of markedAnchors.keys()) {
       resetAnchor(a);
     }
+    seenHrefs = new WeakMap();
   } catch {
     // ignore
   }

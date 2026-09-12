@@ -31,6 +31,10 @@ export function SettingsPanel() {
       </SwitchItem>
 
       <Header tag={HeaderTags.H3}>Link kinds</Header>
+      <Text tag={TextTags.textSM} style={{ display: "block", "margin-bottom": "8px" }}>
+        Share-link kinds are unknown until ralgruM resolves them. Individual kind switches cannot
+        filter shares; turning all kinds off disables share links too.
+      </Text>
       <SwitchItem checked={store.showTracks} onChange={toggle("showTracks")}>
         Tracks
       </SwitchItem>

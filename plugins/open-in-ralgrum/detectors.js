@@ -10,8 +10,32 @@
 const DEEZER_HOST_RE = /^(?:[a-z0-9-]+\.)*deezer\.com$/i;
 const DEEZER_LOCALE_RE = /^[a-z]{2}(?:-[a-z]{2})?$/i;
 const DEEZER_SHORT_HOST_RE = /^(?:[a-z0-9-]+\.)*(?:link\.deezer\.com|deezer\.page\.link)$/i;
-const SOUNDCLOUD_HOST_RE = /^(?:[a-z0-9-]+\.)*soundcloud\.com$/i;
+const SOUNDCLOUD_HOST_RE = /^(?:(?:www|m)\.)?soundcloud\.com$/i;
 const SOUNDCLOUD_SHORT_HOST_RE = /^on\.soundcloud\.com$/i;
+const SOUNDCLOUD_RESERVED_ROUTES = new Set([
+  "you",
+  "discover",
+  "stream",
+  "feed",
+  "search",
+  "upload",
+  "settings",
+  "charts",
+  "stations",
+  "pages",
+  "terms",
+  "imprint",
+  "logout",
+]);
+const SOUNDCLOUD_PROFILE_TABS = new Set([
+  "likes",
+  "tracks",
+  "popular-tracks",
+  "reposts",
+  "followers",
+  "following",
+]);
+const SOUNDCLOUD_SECRET_SUFFIX_RE = /^s-.+$/i;
 
 export function normalizeType(raw) {
   raw = String(raw || "").toLowerCase();
@@ -57,7 +81,7 @@ function soundcloudPathSegments(url) {
     if (u.protocol !== "https:" || !SOUNDCLOUD_HOST_RE.test(u.hostname)) {
       return null;
     }
-    return { hostname: u.hostname.toLowerCase(), segments: u.pathname.split("/").filter(Boolean) };
+    return u.pathname.split("/").filter(Boolean);
   } catch {
     return null;
   }
@@ -65,9 +89,8 @@ function soundcloudPathSegments(url) {
 
 /**
  * SoundCloud's api-v2 /resolve endpoint only resolves canonical
- * soundcloud.com permalinks; mobile (m.) and other subdomains 404.
- * The permalink path is host-independent, so always hand the app the
- * canonical host.
+ * soundcloud.com permalinks. The accepted www. and m. permalink hosts
+ * share the canonical path; other subdomains are not entity hosts.
  */
 export function canonicalSoundcloudUrl(url) {
   try {
@@ -81,42 +104,34 @@ export function canonicalSoundcloudUrl(url) {
 }
 
 export function parseSoundcloudUrl(url) {
-  const parsed = soundcloudPathSegments(url);
-  if (!parsed) {
+  const segs = soundcloudPathSegments(url);
+  if (!segs || segs.length === 0 || SOUNDCLOUD_RESERVED_ROUTES.has(segs[0].toLowerCase())) {
     return null;
   }
-  const { hostname, segments: segs } = parsed;
-  if (segs.length === 0) {
-    return null;
-  }
-  // on.soundcloud.com share links (e.g. /AbC123) carry no entity path;
-  // ralgruM resolves them natively to the canonical soundcloud.com URL.
-  if (SOUNDCLOUD_SHORT_HOST_RE.test(hostname)) {
-    return null;
-  }
-  const lowered = segs.map((s) => s.toLowerCase());
-  // Reserved top level pages are never entities.
-  const reserved = ["you", "discover", "stream", "search", "upload", "settings", "charts", "stations", "pages", "terms", "imprint", "logout"];
-  if (reserved.indexOf(lowered[0]) !== -1) {
-    return null;
-  }
-  const canonical = canonicalSoundcloudUrl(url);
+
+  let type;
   if (segs.length === 1) {
-    return { provider: "soundcloud", type: "artist", id: null, url: canonical };
+    type = "artist";
+  } else {
+    const second = segs[1].toLowerCase();
+    if (second === "sets" || second === "albums") {
+      // A profile's collection tab needs a resource slug to name one collection.
+      if (segs.length !== 3 && !(segs.length === 4 && SOUNDCLOUD_SECRET_SUFFIX_RE.test(segs[3]))) {
+        return null;
+      }
+      type = second === "sets" ? "playlist" : "album";
+    } else {
+      if (SOUNDCLOUD_PROFILE_TABS.has(second)) {
+        return null;
+      }
+      // Private tracks add one opaque s-... suffix to the public permalink.
+      if (segs.length !== 2 && !(segs.length === 3 && SOUNDCLOUD_SECRET_SUFFIX_RE.test(segs[2]))) {
+        return null;
+      }
+      type = "track";
+    }
   }
-  if (lowered[1] === "sets" || lowered.indexOf("sets") !== -1) {
-    return { provider: "soundcloud", type: "playlist", id: null, url: canonical };
-  }
-  if (segs.length >= 3 && lowered[1] === "albums") {
-    return { provider: "soundcloud", type: "album", id: null, url: canonical };
-  }
-  if (segs.length === 2) {
-    return { provider: "soundcloud", type: "track", id: null, url: canonical };
-  }
-  if (segs.length > 2) {
-    return { provider: "soundcloud", type: "track", id: null, url: canonical };
-  }
-  return null;
+  return { provider: "soundcloud", type, id: null, url: canonicalSoundcloudUrl(url) };
 }
 
 /** True when the URL is a share shortlink that ralgruM resolves natively. */

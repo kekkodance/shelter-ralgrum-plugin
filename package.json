@@ -6,7 +6,7 @@
     "plugins/*"
   ],
   "scripts": {
-    "build": "lune ci",
+    "build": "lune build plugins/open-in-ralgrum --to dist/open-in-ralgrum",
     "dev": "lune dev plugins/open-in-ralgrum",
     "lint": "eslint .",
     "test": "node --test tests/*.test.mjs"
@@ -16,9 +16,10 @@
     "@uwu/lune": "^1.6.3",
     "@uwu/shelter-defs": "^1.5.1",
     "eslint": "^10.10.0",
-    "globals": "^17.12.0"
+    "globals": "^17.12.0",
+    "happy-dom": "^20.14.5"
   },
   "engines": {
-    "node": ">=18"
+    "node": "^20.19.0 || ^22.13.0 || >=24"
   }
 }
