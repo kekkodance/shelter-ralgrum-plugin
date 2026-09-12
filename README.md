@@ -59,4 +59,4 @@ unload behavior in an isolated DOM. It does not launch the native app.
 The combined CI workflow runs lint, tests, and the production build. Only a successful
 main-branch run can publish its checked artifact; superseded revisions are skipped.
 
-Copyright © 2026 kekkodance. All rights reserved.
+Copyright © 2026 kekkodance. All rights reserved. See LICENSE.
