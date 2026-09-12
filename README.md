@@ -3,7 +3,7 @@
 </h1>
 
 <div align="center">
-  <img src="https://img.shields.io/github/actions/workflow/status/kekkodance/shelter-ralgrum-plugin/deploy.yml?label=checks%20%26%20deploy" />
+  <img src="https://img.shields.io/github/actions/workflow/status/kekkodance/ralgrum-shelter-plugin/deploy.yml?label=checks%20%26%20deploy" />
 
   <br/>
 
@@ -22,7 +22,7 @@
 
 ## Install
 
-You can install the plugin in shelter with `https://kekkodance.github.io/shelter-ralgrum-plugin/open-in-ralgrum`.
+You can install the plugin in shelter with `https://kekkodance.github.io/ralgrum-shelter-plugin/open-in-ralgrum`.
 
 ## Develop
 
