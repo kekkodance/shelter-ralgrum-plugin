@@ -366,16 +366,6 @@ function SettingsPanel() {
 			},
 			children: "Link kinds"
 		}),
-		(0, import_web$1.createComponent)(Text, {
-			get tag() {
-				return TextTags.textSM;
-			},
-			style: {
-				display: "block",
-				"margin-bottom": "8px"
-			},
-			children: "Share-link kinds are unknown until ralgruM resolves them. Individual kind switches cannot filter shares; turning all kinds off disables share links too."
-		}),
 		(0, import_web$1.createComponent)(SwitchItem, {
 			get checked() {
 				return store$1.showTracks;
