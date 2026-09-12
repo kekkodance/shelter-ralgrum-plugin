@@ -14,6 +14,9 @@ export function createShelter(t, bundle, initialStore = {}) {
     url: "https://discord.com/channels/@me",
     settings: {
       enableJavaScriptEvaluation: true,
+      // The evaluated code is always our own locally built bundle, external
+      // scripts are blocked and network access is intercepted below.
+      suppressInsecureJavaScriptEnvironmentWarning: true,
       disableJavaScriptFileLoading: true,
       disableCSSFileLoading: true,
       enableImageFileLoading: false,
