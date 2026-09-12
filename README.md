@@ -18,13 +18,7 @@
 - Supports canonical pages plus share shortlinks:  
   `link.deezer.com`, `deezer.page.link`, `on.soundcloud.com`, and `m.soundcloud.com`.
 - SoundCloud profile tabs, navigation pages, and non-music subdomains stay in the browser.
-- Eligible links show a tooltip that updates when their URL or settings change.
-- Provider and link-kind switches control canonical links. Share-link kinds are unknown
-  until ralgruM resolves them, so individual kind switches cannot filter shares.
-  Turning all kinds off, or disabling the provider, leaves share links in the browser.
-- An opening toast confirms an attempt, not that ralgruM launched. The plugin cannot
-  detect a missing protocol handler. If nothing happens, register the app's handler
-  or use Ctrl/Cmd+Click to open the link in the browser.
+
 
 ## Install
 
