@@ -31,8 +31,32 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 const DEEZER_HOST_RE = /^(?:[a-z0-9-]+\.)*deezer\.com$/i;
 const DEEZER_LOCALE_RE = /^[a-z]{2}(?:-[a-z]{2})?$/i;
 const DEEZER_SHORT_HOST_RE = /^(?:[a-z0-9-]+\.)*(?:link\.deezer\.com|deezer\.page\.link)$/i;
-const SOUNDCLOUD_HOST_RE = /^(?:[a-z0-9-]+\.)*soundcloud\.com$/i;
+const SOUNDCLOUD_HOST_RE = /^(?:(?:www|m)\.)?soundcloud\.com$/i;
 const SOUNDCLOUD_SHORT_HOST_RE = /^on\.soundcloud\.com$/i;
+const SOUNDCLOUD_RESERVED_ROUTES = new Set([
+	"you",
+	"discover",
+	"stream",
+	"feed",
+	"search",
+	"upload",
+	"settings",
+	"charts",
+	"stations",
+	"pages",
+	"terms",
+	"imprint",
+	"logout"
+]);
+const SOUNDCLOUD_PROFILE_TABS = new Set([
+	"likes",
+	"tracks",
+	"popular-tracks",
+	"reposts",
+	"followers",
+	"following"
+]);
+const SOUNDCLOUD_SECRET_SUFFIX_RE = /^s-.+$/i;
 function normalizeType(raw) {
 	raw = String(raw || "").toLowerCase();
 	if (raw === "track" || raw === "album" || raw === "playlist" || raw === "artist") return raw;
@@ -65,10 +89,7 @@ function soundcloudPathSegments(url) {
 	try {
 		const u = new URL(String(url));
 		if (u.protocol !== "https:" || !SOUNDCLOUD_HOST_RE.test(u.hostname)) return null;
-		return {
-			hostname: u.hostname.toLowerCase(),
-			segments: u.pathname.split("/").filter(Boolean)
-		};
+		return u.pathname.split("/").filter(Boolean);
 	} catch {
 		return null;
 	}
@@ -84,59 +105,27 @@ function canonicalSoundcloudUrl(url) {
 	}
 }
 function parseSoundcloudUrl(url) {
-	const parsed = soundcloudPathSegments(url);
-	if (!parsed) return null;
-	const { hostname, segments: segs } = parsed;
-	if (segs.length === 0) return null;
-	if (SOUNDCLOUD_SHORT_HOST_RE.test(hostname)) return null;
-	const lowered = segs.map((s) => s.toLowerCase());
-	const reserved = [
-		"you",
-		"discover",
-		"stream",
-		"search",
-		"upload",
-		"settings",
-		"charts",
-		"stations",
-		"pages",
-		"terms",
-		"imprint",
-		"logout"
-	];
-	if (reserved.indexOf(lowered[0]) !== -1) return null;
-	const canonical = canonicalSoundcloudUrl(url);
-	if (segs.length === 1) return {
+	const segs = soundcloudPathSegments(url);
+	if (!segs || segs.length === 0 || SOUNDCLOUD_RESERVED_ROUTES.has(segs[0].toLowerCase())) return null;
+	let type;
+	if (segs.length === 1) type = "artist";
+else {
+		const second = segs[1].toLowerCase();
+		if (second === "sets" || second === "albums") {
+			if (segs.length !== 3 && !(segs.length === 4 && SOUNDCLOUD_SECRET_SUFFIX_RE.test(segs[3]))) return null;
+			type = second === "sets" ? "playlist" : "album";
+		} else {
+			if (SOUNDCLOUD_PROFILE_TABS.has(second)) return null;
+			if (segs.length !== 2 && !(segs.length === 3 && SOUNDCLOUD_SECRET_SUFFIX_RE.test(segs[2]))) return null;
+			type = "track";
+		}
+	}
+	return {
 		provider: "soundcloud",
-		type: "artist",
+		type,
 		id: null,
-		url: canonical
+		url: canonicalSoundcloudUrl(url)
 	};
-	if (lowered[1] === "sets" || lowered.indexOf("sets") !== -1) return {
-		provider: "soundcloud",
-		type: "playlist",
-		id: null,
-		url: canonical
-	};
-	if (segs.length >= 3 && lowered[1] === "albums") return {
-		provider: "soundcloud",
-		type: "album",
-		id: null,
-		url: canonical
-	};
-	if (segs.length === 2) return {
-		provider: "soundcloud",
-		type: "track",
-		id: null,
-		url: canonical
-	};
-	if (segs.length > 2) return {
-		provider: "soundcloud",
-		type: "track",
-		id: null,
-		url: canonical
-	};
-	return null;
 }
 function isShortlinkUrl(url) {
 	try {
@@ -209,42 +198,12 @@ else if (host === "on.soundcloud.com") provider = "soundcloud";
 }
 
 //#endregion
-//#region plugins/open-in-ralgrum/styles.css
-shelter.plugin.scoped.ui.injectCss(`.MbxEpq_badge {
-  vertical-align: 1px;
-  color: #e0e7ff;
-  pointer-events: none;
-  white-space: nowrap;
-  background: #4f46e540;
-  border: 1px solid #818cf899;
-  border-radius: 999px;
-  margin-left: 6px;
-  padding: 0 6px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 18px;
-  display: inline-block;
-}
-
-.MbxEpq_badge[data-provider="deezer"] {
-  color: #f5d0fe;
-  background: #a855f738;
-  border-color: #c084fca6;
-}
-
-.MbxEpq_badge[data-provider="soundcloud"] {
-  color: #fed7aa;
-  background: #f9731633;
-  border-color: #fb923ca6;
-}
-`);
-var styles_default = { "badge": "MbxEpq_badge" };
-
-//#endregion
 //#region plugins/open-in-ralgrum/marks.js
-const MARK_ATTR = "ralgrum";
+const MARK_ATTR = "data-ralgrum";
 const REFRESH_EVENT = "open-in-ralgrum:refresh";
 const TOOLTIP = "Open in ralgruM (Ctrl+Click for browser)";
+const markedAnchors = new Map();
+let seenHrefs = new WeakMap();
 function shortlinkProvider(rawUrl) {
 	try {
 		const host = new URL(String(rawUrl)).hostname.toLowerCase();
@@ -261,50 +220,61 @@ function isEntityEnabled(entity, store$1) {
 	if (entity.type === "artist" && store$1.showArtists === false) return false;
 	return true;
 }
+function isShortlinkEnabled(href, store$1) {
+	if (store$1.showTracks === false && store$1.showCollections === false && store$1.showArtists === false) return false;
+	const provider = shortlinkProvider(href);
+	return provider !== null && store$1[provider] !== false;
+}
 function shouldMark(href, classification, store$1) {
 	if (classification.kind === "entity") return isEntityEnabled(classification.entity, store$1);
-	if (classification.kind === "shortlink") {
-		const provider = shortlinkProvider(href);
-		return provider ? store$1[provider] !== false : false;
-	}
+	if (classification.kind === "shortlink") return isShortlinkEnabled(href, store$1);
 	return false;
 }
 function resetAnchor(a) {
-	const badge = a.querySelector(`.${styles_default.badge}`);
-	if (badge) badge.remove();
-	if (MARK_ATTR in a.dataset) delete a.dataset[MARK_ATTR];
-	if ("ralgrumOrigTitle" in a.dataset) {
-		a.title = a.dataset.ralgrumOrigTitle;
-		delete a.dataset.ralgrumOrigTitle;
+	const originalTitle = markedAnchors.get(a);
+	if (originalTitle === undefined) return;
+	markedAnchors.delete(a);
+	if (a.getAttribute(MARK_ATTR) === "1") a.removeAttribute(MARK_ATTR);
+	if (a.getAttribute("title") === TOOLTIP) {
+		if (originalTitle === null) a.removeAttribute("title");
+else if (originalTitle !== TOOLTIP) a.setAttribute("title", originalTitle);
 	}
 }
 function markAnchor(a) {
 	try {
 		if (!(a instanceof HTMLAnchorElement)) return;
-		if (MARK_ATTR in a.dataset) return;
-		const store$1 = shelter.plugin.store;
+		if (!a.isConnected || !a.hasAttribute("href")) {
+			seenHrefs.delete(a);
+			resetAnchor(a);
+			return;
+		}
 		const href = a.href;
-		const classification = classifyLink(href);
-		const mark = shouldMark(href, classification, store$1);
-		a.dataset[MARK_ATTR] = mark ? "1" : "0";
-		if (!mark) return;
-		if (!("ralgrumOrigTitle" in a.dataset)) a.dataset.ralgrumOrigTitle = a.title || "";
-		a.title = TOOLTIP;
+		if (seenHrefs.get(a) !== href) {
+			seenHrefs.set(a, href);
+			if (!shouldMark(href, classifyLink(href), shelter.plugin.store)) {
+				resetAnchor(a);
+				return;
+			}
+			if (!markedAnchors.has(a)) {
+				const originalTitle = a.getAttribute("title");
+				markedAnchors.set(a, originalTitle);
+				if (originalTitle !== TOOLTIP) a.setAttribute("title", TOOLTIP);
+			}
+		}
+		if (markedAnchors.has(a) && a.getAttribute(MARK_ATTR) !== "1") a.setAttribute(MARK_ATTR, "1");
 	} catch {}
 }
 function refreshAllMarks() {
 	try {
-		const anchors = document.querySelectorAll("a[href]");
-		for (const a of anchors) {
-			resetAnchor(a);
-			markAnchor(a);
-		}
+		seenHrefs = new WeakMap();
+		for (const a of markedAnchors.keys()) markAnchor(a);
+		for (const a of document.querySelectorAll("a[href]")) markAnchor(a);
 	} catch {}
 }
 function cleanupAllMarks() {
 	try {
-		const marked = document.querySelectorAll(`a[data-${MARK_ATTR}]`);
-		for (const a of marked) resetAnchor(a);
+		for (const a of markedAnchors.keys()) resetAnchor(a);
+		seenHrefs = new WeakMap();
 	} catch {}
 }
 function emitRefresh() {
@@ -396,6 +366,16 @@ function SettingsPanel() {
 			},
 			children: "Link kinds"
 		}),
+		(0, import_web$1.createComponent)(Text, {
+			get tag() {
+				return TextTags.textSM;
+			},
+			style: {
+				display: "block",
+				"margin-bottom": "8px"
+			},
+			children: "Share-link kinds are unknown until ralgruM resolves them. Individual kind switches cannot filter shares; turning all kinds off disables share links too."
+		}),
 		(0, import_web$1.createComponent)(SwitchItem, {
 			get checked() {
 				return store$1.showTracks;
@@ -446,7 +426,8 @@ function SettingsPanel() {
 //#region plugins/open-in-ralgrum/index.jsx
 const { plugin: { store, scoped }, ui, util: { log } } = shelter;
 const settings = SettingsPanel;
-const LINK_SELECTOR = "a[href*=\"deezer.com\"]:not([data-ralgrum]),a[href*=\"soundcloud.com\"]:not([data-ralgrum]),a[href*=\"deezer.page.link\"]:not([data-ralgrum])";
+let loaded = false;
+let stopObserving;
 function ensureDefaults() {
 	store.deezer ??= true;
 	store.soundcloud ??= true;
@@ -535,7 +516,7 @@ function openShortlink(originalUrl) {
 }
 function handleClick(e) {
 	try {
-		if (e.defaultPrevented) return;
+		if (!loaded || e.defaultPrevented || !isPlainLeftClick(e)) return;
 		const target = e.target;
 		if (!(target instanceof Element)) return;
 		const anchor = target.closest("a[href]");
@@ -544,42 +525,39 @@ function handleClick(e) {
 		if (classification.kind === null) return;
 		if (classification.kind === "entity") {
 			if (!isEntityEnabled(classification.entity, store)) return;
-			if (!isPlainLeftClick(e)) return;
 			hijack(e);
 			openEntity(classification.entity, anchor);
 			return;
 		}
-		const shortProvider = shortlinkProvider(anchor.href);
-		if (shortProvider && store[shortProvider] === false) return;
-		if (!isPlainLeftClick(e)) return;
+		if (!isShortlinkEnabled(anchor.href, store)) return;
 		hijack(e);
 		openShortlink(anchor.href);
 	} catch {}
 }
 function handleObserved(node) {
-	try {
-		if (node instanceof HTMLAnchorElement) {
-			markAnchor(node);
-			return;
-		}
-		if (node && typeof node.querySelectorAll === "function") {
-			const anchors = node.querySelectorAll("a[href]");
-			for (const a of anchors) markAnchor(a);
-		}
-	} catch {}
+	if (loaded) markAnchor(node);
+}
+function handleRefresh() {
+	if (loaded) refreshAllMarks();
 }
 function onLoad() {
+	if (loaded) return;
 	ensureDefaults();
+	loaded = true;
+	scoped.onDispose(onUnload);
 	document.addEventListener("click", handleClick, true);
-	scoped.onDispose(() => document.removeEventListener("click", handleClick, true));
-	const onRefresh = () => refreshAllMarks();
-	window.addEventListener(REFRESH_EVENT, onRefresh);
-	scoped.onDispose(() => window.removeEventListener(REFRESH_EVENT, onRefresh));
-	scoped.observeDom(LINK_SELECTOR, handleObserved);
+	window.addEventListener(REFRESH_EVENT, handleRefresh);
+	stopObserving = scoped.observeDom("a", handleObserved);
 	refreshAllMarks();
 	log("[open-in-ralgrum] listening for Deezer/SoundCloud links");
 }
 function onUnload() {
+	if (!loaded) return;
+	loaded = false;
+	document.removeEventListener("click", handleClick, true);
+	window.removeEventListener(REFRESH_EVENT, handleRefresh);
+	stopObserving?.();
+	stopObserving = undefined;
 	pendingResolves.clear();
 	cleanupAllMarks();
 }
